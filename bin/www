@@ -1,0 +1,207 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('express-sign:server');
+var http = require('http');
+
+let webSocketServer = http.Server(app)
+
+let socketIo = require('socket.io')
+
+let io = socketIo(webSocketServer)
+
+let { formatDate } = require('../core/util/util')
+
+const users = {}
+
+io.on("connection", (socket) => {
+  console.log('连接建立成功', `id: ${socket.id}`)
+
+  socket.on('login', (nikname) => {
+    if(users[nikname]) {
+      socket.emit('repeat')
+      return
+    }
+    socket.nikname = nikname
+    users[nikname] = {
+      name: nikname,
+      socket: socket,
+      loginTime: formatDate()
+    }
+    console.log(nikname)
+    io.sockets.emit('logged', nikname)
+  })
+
+  socket.on('disconnect', () => {
+    let nikname = socket?.nikname
+    if(nikname && users[nikname]) {
+      delete users[nikname]
+      io.sockets.emit('logout', nikname)
+    }
+  })
+
+  socket.on('send', (msg) =>{
+    let msgTime = formatDate()
+    socket.broadcast.emit('chat', {
+      name: socket.nikname,
+      msg: msg,
+      time: msgTime
+    })
+  })
+  })
+  
+
+webSocketServer.listen(8883, () => {
+  console.log('8883已开启')
+})
+// let webSocketServer = http.Server(app)
+// let socketIo = require('socket.io')
+// let io = socketIo(webSocketServer, { transports: ['webSocket'] });
+
+// io.on("connection", (socket) => {
+//   console.log('连接已建立', socket.id)
+// });
+
+// webSocketServer.listen(8881);
+
+
+// var webSocketServer = http.Server(app);
+// var io = require('socket.io')(webSocketServer, { transports: ['websocket'] })
+
+// const users = {}
+// io.on('connection', function (socket) {
+//   //每当一个用户登录，就会生成一个socket对象,此时的socket是对应正连接的客户端对象
+//   //为什么它只会发送给刚连接的用户呢？因为这个socket就是刚连接的用户生成的。 
+//   //注意：第一个参数是自己定义的，只要前后端都对应即可
+//   //socket.emit('setId', { id: '123456' })
+//   // setInterval(() => {
+//   //     socket.emit('setId', { id: new Date() })
+//   // }, 3000)
+
+//   //广播api：它会向所有用户发送这个事件。由于它放在“连接”函数里面，所以只要有用户建立连接，就会发送这个事件
+//   //为什么要广播给所有用户呢？当有新用户加入，当然要告知之前的用户，让它们更新“用户列表”，这样新旧用户才能发起聊天
+//   //io.sockets.emit('time', {time:new Date()})
+//   //这是实现单聊的api,使用on监听客户端发来的sendMsgToUser事件
+//   //该事件携带发送的内容，data中有发送者和接收者的id和聊天内容
+
+
+//   socket.emit('chat', 'connection')
+//   socket.on('chat', function (data) {
+//     io.sockets.emit('chat', '来自:' + data)
+//   })
+
+//   socket.on('disconnect', () => {
+//     console.log('退出')
+//   })
+
+//   socket.on('nikename', (nikename) => {
+//     if (users[nickname] || nickname === "system") {
+//       socket.emit("repeat");
+//     } else {
+//       socket.nickname = nickname;
+//       users[nickname] = {
+//         name: nickname,
+//         socket: socket,
+//         lastSpeakTime: nowSecond()
+//       };
+//       socket.emit("loginSuccess");
+//       UsersChange(nickname, true);
+//     }
+//   })
+
+// })
+
+
+// function nowSecond () {
+//   return Math.floor(new Date() / 1000);
+// }
+
+// webSocketServer.listen(8888, function () {
+//   console.log('连接成功 socket');
+// })
+
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort (val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError (error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening () {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
